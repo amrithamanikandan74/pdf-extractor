@@ -1,12 +1,15 @@
 """
 Document upload, listing, metadata, and per-document run history.
 """
+import io
 import json
 import os
+import re
 import uuid
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from loguru import logger
 
 from app.config import settings
 from app.db import Document, DocumentChunk, ExtractionRun, SessionLocal
@@ -14,6 +17,26 @@ from app.services.embeddings import get_embeddings
 from app.services.extraction import backfill_payload_confidence, normalize_stored_result_payload, safe_json_loads
 from app.services.pdf import chunk_text, extract_heading, extract_text_from_pdf
 from app.services.retrieval import ensure_elasticsearch_index, es_client, index_chunks_to_elasticsearch
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+_UNSAFE_CHARS = re.compile(r'[^\w\s\.\-]')
+
+
+def _safe_filename(name: str) -> str:
+    """Strip directory separators and dangerous characters from a filename.
+
+    Guards against path-traversal attacks such as filenames like
+    ``../../app/main.py`` or ``../secret.pdf``.
+    """
+    # Take only the base filename — no directory components
+    name = os.path.basename(name)
+    # Replace any remaining unsafe characters with underscores
+    name = _UNSAFE_CHARS.sub('_', name)
+    # Collapse multiple dots to prevent extension tricks (e.g. file..pdf)
+    name = re.sub(r'\.{2,}', '.', name)
+    return name or 'upload.pdf'
 
 router = APIRouter(tags=["documents"])
 
@@ -180,14 +203,41 @@ def get_document_run_by_schema(document_id: str, schema_name: str):
 
 @router.post("/upload-pdf")
 async def upload_pdf(pdf_file: UploadFile = File(...)):
+    # ── Basic extension check (fast, cheap) ───────────────────────────────────
     if not pdf_file.filename or not pdf_file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
+    content = await pdf_file.read()
+
+    # ── Upload size limit ──────────────────────────────────────────────────────
+    if len(content) > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum allowed size is {settings.MAX_UPLOAD_SIZE // (1024 * 1024)} MiB.",
+        )
+
+    # ── MIME type validation (magic bytes, not just extension) ─────────────────
+    try:
+        import magic  # python-magic; see requirements.txt
+        mime = magic.from_buffer(content, mime=True)
+        if mime != "application/pdf":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type '{mime}'. Only PDF files are accepted.",
+            )
+    except ImportError:
+        # python-magic unavailable — fall back to PyMuPDF validation below
+        logger.warning("python-magic not installed; skipping MIME validation")
+
+    # ── Safe filename (path traversal prevention) ──────────────────────────────
+    safe_name = _safe_filename(pdf_file.filename)
+    pdf_file.file = io.BytesIO(content)
+
     file_id = str(uuid.uuid4())
-    file_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}_{pdf_file.filename}")
+    file_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}_{safe_name}")
 
     with open(file_path, "wb") as f:
-        f.write(await pdf_file.read())
+        f.write(content)
 
     pages = extract_text_from_pdf(file_path)
     combined_text = "\n\n".join([f"Page {p['page']}:\n{p['text']}" for p in pages if p["text"].strip()])
@@ -254,15 +304,15 @@ async def upload_pdf(pdf_file: UploadFile = File(...)):
             try:
                 if es_client.ping():
                     ensure_elasticsearch_index()
-                    index_chunks_to_elasticsearch(file_id, pdf_file.filename, es_chunks)
-            except Exception:
+                    index_chunks_to_elasticsearch(file_id, safe_name, es_chunks)
+            except Exception as exc:
                 # Do not fail PDF upload just because Elasticsearch is not running.
                 # pgvector extraction can still work.
-                pass
+                logger.error("Elasticsearch indexing failed for document {}: {}", file_id, exc)
 
         return {
             "document_id": file_id,
-            "filename": pdf_file.filename,
+            "filename": safe_name,
             "total_pages": len(pages),
             "total_chunks": len(all_chunks),
             "message": "PDF uploaded successfully"
