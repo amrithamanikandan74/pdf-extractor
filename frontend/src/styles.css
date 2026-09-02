@@ -539,6 +539,432 @@ select { cursor: pointer; }
 
 .upload-drop p { font-size: 12.5px; color: var(--text-muted); }
 
+.upload-drop-active {
+  border-color: var(--accent) !important;
+  background: var(--accent-light) !important;
+  box-shadow: 0 0 0 4px rgba(79,110,247,0.12);
+}
+
+.upload-drop-busy {
+  opacity: 0.6;
+  cursor: wait;
+  pointer-events: none;
+}
+
+/* ── PDF PAGE LAYOUT ──────────────────────── */
+.pdf-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .pdf-layout { grid-template-columns: 1fr; }
+}
+
+.pdf-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── PDF LIST ─────────────────────────────── */
+.pdf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.pdf-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+
+.pdf-list-item:hover {
+  background: var(--surface-2);
+}
+
+.pdf-list-item-active {
+  background: var(--accent-light) !important;
+  border-color: rgba(79,110,247,0.25);
+}
+
+.pdf-list-item-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pdf-list-item-icon svg {
+  color: white;
+  width: 16px;
+  height: 16px;
+}
+
+.pdf-list-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pdf-list-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pdf-list-item-meta {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── PDF PREVIEW PANEL ────────────────────── */
+.pdf-preview-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pdf-preview-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 24px;
+  color: var(--text-muted);
+}
+
+.pdf-preview-empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.pdf-preview-empty-icon svg {
+  opacity: 0.3;
+  color: var(--text-muted);
+}
+
+.pdf-preview-empty h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pdf-preview-empty p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── PDF PREVIEW HEADER ───────────────────── */
+.pdf-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.pdf-preview-header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.pdf-preview-filename {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pdf-preview-stats {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.pdf-preview-header-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── PDF PREVIEW TABS ─────────────────────── */
+.pdf-preview-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  gap: 2px;
+  background: var(--surface-2);
+}
+
+.pdf-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  font-family: inherit;
+  position: relative;
+  top: 1px;
+}
+
+.pdf-tab:hover {
+  color: var(--text-secondary);
+}
+
+.pdf-tab-active {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent);
+  background: var(--surface);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.pdf-tab svg {
+  width: 14px;
+  height: 14px;
+}
+
+.pdf-tab-count {
+  font-size: 10px;
+  background: var(--accent);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* ── PDF PREVIEW BODY ─────────────────────── */
+.pdf-preview-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── PDF IFRAME ───────────────────────────── */
+.pdf-iframe-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 500px;
+}
+
+.pdf-iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  border: none;
+  background: #525659;
+}
+
+.pdf-iframe-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 13px;
+  z-index: 2;
+}
+
+.pdf-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── PDF TEXT VIEW ─────────────────────────── */
+.pdf-text-view {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pdf-text-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pdf-text-content {
+  background: #0f1320;
+  color: #d4d4d8;
+  padding: 18px;
+  border-radius: var(--radius);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  line-height: 1.8;
+  max-height: 500px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── PDF CHUNKS VIEW ──────────────────────── */
+.pdf-chunks-view {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pdf-chunks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.pdf-chunk-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  transition: border-color 0.15s;
+}
+
+.pdf-chunk-card:hover {
+  border-color: var(--accent);
+}
+
+.pdf-chunk-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pdf-chunk-index {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  background: var(--accent-light);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.pdf-chunk-page {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.pdf-chunk-heading {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-chunk-text {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-height: 100px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pdf-chunk-text::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(transparent, var(--surface-2));
+  pointer-events: none;
+}
+
+/* ── UPLOAD PROGRESS ──────────────────────── */
+.pdf-progress-wrap {
+  margin-bottom: 16px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.pdf-progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pdf-progress-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.pdf-progress-pct {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+}
+
 /* ── CODE ──────────────────────────────────── */
 .code-preview {
   background: #0f1320;
