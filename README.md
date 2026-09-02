@@ -117,7 +117,3 @@ To also wipe the database and start completely fresh:
 ```bash
 docker compose down -v
 ```
-
----
-
-- Elasticsearch needs a bit more memory than the rest of the stack. If Docker Desktop is limited on RAM, raise its memory allocation (Docker Desktop → Settings → Resources) if the `elasticsearch` container keeps restarting.
