@@ -32,6 +32,9 @@ Built with **FastAPI** (Python) on the backend and **React** on the frontend, ru
 
 ```
 pdf-extractor/
+├── docker-compose.yml       # Runs the whole stack from here
+├── .env.example
+│
 ├── backend/
 │   ├── app/
 │   │   ├── main.py           # App entry point
@@ -40,8 +43,7 @@ pdf-extractor/
 │   │   ├── routes/            # API endpoints
 │   │   └── services/           # Core logic (PDF parsing, extraction, retrieval)
 │   ├── requirements.txt
-│   ├── Dockerfile
-│   └── docker-compose.yml
+│   └── Dockerfile
 │
 └── frontend/
     ├── src/
@@ -61,8 +63,10 @@ You need **Docker Desktop** installed. That's it — Docker handles Python, Node
 
 ```bash
 git clone https://github.com/amrithamanikandan74/pdf-extractor.git
-cd pdf-extractor/backend
+cd pdf-extractor
 ```
+
+Everything below runs from this root folder — you don't need to `cd` into `backend/` or `frontend/` at all.
 
 ### 2. Set up your environment file
 
@@ -89,7 +93,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 docker compose up -d --build
 ```
 
-This starts three containers: the database, the backend API, and the frontend — all in one command.
+This starts four containers — database, Elasticsearch, backend API, and frontend — all in one command, from the project root.
 
 ### 4. Open the app
 
@@ -115,3 +119,5 @@ docker compose down -v
 ```
 
 ---
+
+- Elasticsearch needs a bit more memory than the rest of the stack. If Docker Desktop is limited on RAM, raise its memory allocation (Docker Desktop → Settings → Resources) if the `elasticsearch` container keeps restarting.
