@@ -10,7 +10,8 @@ from typing import Any, Dict, List, Tuple
 from groq import Groq
 
 from app.config import settings
-from app.db import DocumentChunk, SessionLocal
+from app.db import DocumentChunk, ExtractionRun, SessionLocal
+from app.services.retrieval import retrieve_relevant_chunks
 
 groq_client = Groq(api_key=settings.GROQ_API_KEY)
 
@@ -238,7 +239,7 @@ Relevant PDF Chunks:
 """
 
     response = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[
             {
                 "role": "system",
@@ -392,3 +393,50 @@ def compare_extraction_payloads(run1_payload: Dict[str, Any], run2_payload: Dict
     }
 
     return comparison, summary
+
+
+def perform_extraction_and_store(
+    run_id: str,
+    document_id: str,
+    document_filename: str,
+    schema: Dict[str, Any],
+    schema_name: str,
+    backend: str,
+) -> None:
+    """
+    Does the actual retrieval + LLM work and writes the result back onto the
+    ExtractionRun row. Called via FastAPI's BackgroundTasks, which runs plain
+    (non-async) callables in a worker thread — so this runs off the event
+    loop and the request that kicked it off returns immediately instead of
+    blocking every other request for the duration of the LLM call.
+    """
+    db = SessionLocal()
+    try:
+        run = db.query(ExtractionRun).filter(ExtractionRun.id == run_id).first()
+        if not run:
+            return
+
+        try:
+            context_chunks = retrieve_relevant_chunks(document_id, schema, backend=backend, top_k_per_field=12)
+            extraction = run_whole_extraction(schema, context_chunks)
+
+            payload = {
+                "document_id": document_id,
+                "document_filename": document_filename,
+                "schema_name": schema_name,
+                "backend": backend,
+                "result": extraction.get("result", {}),
+                "sources": extraction.get("sources", {}),
+                "used_chunks": context_chunks,
+            }
+
+            run.extracted_json = json.dumps(payload, ensure_ascii=False)
+            run.status = "completed"
+            run.error_message = None
+        except Exception as e:
+            run.status = "failed"
+            run.error_message = str(e)
+
+        db.commit()
+    finally:
+        db.close()

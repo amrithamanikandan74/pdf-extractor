@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { getDocument, getDocumentChunks, listDocuments, uploadPdf } from '../lib/api'
+import { API_BASE_URL, getDocument, getDocumentChunks, listDocuments, uploadPdf } from '../lib/api'
 import { hidePdf, loadWorkspace } from '../lib/store'
-
-const API_BASE = 'http://127.0.0.1:8000'
 
 export default function PdfsPage() {
   const fileRef = useRef(null)
@@ -218,7 +216,7 @@ export default function PdfsPage() {
           ) : (
             <>
               <iframe
-                src={`${API_BASE}/documents/${selected.id}/file#toolbar=0&navpanes=0&scrollbar=1`}
+                src={`${API_BASE_URL}/documents/${selected.id}/file#toolbar=0&navpanes=0&scrollbar=1`}
                 title={selected.filename}
                 style={{
                   width: '100%',

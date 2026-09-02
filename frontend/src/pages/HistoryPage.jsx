@@ -205,6 +205,7 @@ export default function HistoryPage() {
                   <th>PDF Document</th>
                   <th>Template</th>
                   <th>Backend</th>
+                  <th>Status</th>
                   <th>Date</th>
                   <th style={{ width: 150 }}>Actions</th>
                 </tr>
@@ -253,6 +254,15 @@ export default function HistoryPage() {
 
                       <td>
                         <span className="badge neutral">{m.backend || 'default'}</span>
+                      </td>
+
+                      <td>
+                        {r.status === 'completed' && <span className="badge success">Completed</span>}
+                        {r.status === 'pending' && <span className="badge warning">Pending…</span>}
+                        {r.status === 'failed' && (
+                          <span className="badge danger" title={r.error_message || 'Extraction failed'}>Failed</span>
+                        )}
+                        {!r.status && <span className="badge success">Completed</span>}
                       </td>
 
                       <td style={{ fontSize: 12.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>

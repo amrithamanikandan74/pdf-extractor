@@ -3,24 +3,34 @@
  *
  * Configuration
  * -------------
- * Set VITE_API_URL in a `.env` or `.env.local` file (or the docker-compose
- * environment) to override the default API base URL.
+ * Set VITE_API_URL in a `.env` or `.env.local` file (or as a Docker build
+ * arg — see frontend/Dockerfile) to override the default API base URL.
  *
  * Set VITE_API_KEY to the same value as API_KEY on the backend so that every
- * request includes the required X-API-Key header.
+ * request includes the required X-API-Key header. There is no fallback
+ * value — see frontend/.env.example for why baking a real secret into a
+ * public JS bundle only stops naive automated abuse, not a determined
+ * attacker who reads the bundle.
  *
  * Example .env.local:
  *   VITE_API_URL=http://localhost:8000
- *   VITE_API_KEY=dev-key
+ *   VITE_API_KEY=your-generated-key
  */
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
-const API_KEY  = import.meta.env.VITE_API_KEY || 'dev-key'
+const API_KEY  = import.meta.env.VITE_API_KEY || ''
+
+if (!API_KEY && import.meta.env.PROD) {
+  // eslint-disable-next-line no-console
+  console.warn('VITE_API_KEY is not set — requests to the backend will be rejected once API_KEY is enabled there.')
+}
 
 /** Shared headers sent with every request. */
 const AUTH_HEADERS = {
   'X-API-Key': API_KEY,
 }
+
+export const API_BASE_URL = API_BASE
 
 async function read(res) {
   let data = null
@@ -77,6 +87,10 @@ export async function extractRun(documentId, schema, templateName, backend) {
 
 export async function listRuns() {
   return read(await fetch(`${API_BASE}/runs`, { headers: AUTH_HEADERS }))
+}
+
+export async function getRun(runId) {
+  return read(await fetch(`${API_BASE}/runs/${runId}`, { headers: AUTH_HEADERS }))
 }
 
 export async function compareRuns(a, b) {

@@ -1,21 +1,7 @@
-"""
-FastAPI application entrypoint.
-
-All actual logic lives in app/db.py, app/services/*, and app/routes/* —
-this module just wires them together.
-
-Security notes
---------------
-* API-key authentication is applied globally via ``Depends(get_api_key)``.
-* Rate limiting (100 req/min per IP by default) is enforced by SlowAPI.
-* HTTPSRedirectMiddleware is enabled when ``FORCE_HTTPS=true`` is set in env.
-* CORS origins are validated in config.py (wildcards are rejected when
-  allow_credentials=True).
-"""
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
@@ -25,8 +11,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from app.config import settings
-from app.db import Base, engine, ensure_pgvector_and_columns
-from app.dependencies import get_api_key
+from app.db import Base, engine, ensure_extraction_run_columns, ensure_pgvector_and_columns
 from app.routes import documents, extraction, system
 from app.services.retrieval import ensure_elasticsearch_index, es_client
 
@@ -36,6 +21,7 @@ async def lifespan(_: FastAPI):
     # DB/ES calls live here (not at import time) so importing this module —
     # e.g. from a test runner or linter — doesn't require a live database.
     ensure_pgvector_and_columns()
+    ensure_extraction_run_columns()
     Base.metadata.create_all(bind=engine)
     if es_client is not None:
         try:
@@ -53,12 +39,15 @@ async def lifespan(_: FastAPI):
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 # ---------------------------------------------------------------------------
-# Application — all routes require a valid X-API-Key header
+# Application
 # ---------------------------------------------------------------------------
+# NOTE: auth is applied per-router (see app/routes/*.py), not globally here.
+# /documents/{id}/file is deliberately left unauthenticated — the frontend
+# loads it via <iframe src=...>, which cannot send a custom X-API-Key
+# header, and the id itself is an unguessable UUID.
 app = FastAPI(
     title="Whole Run PDF Extraction",
     lifespan=lifespan,
-    dependencies=[Depends(get_api_key)],
 )
 
 # Optional HTTPS redirect — enable in production by setting FORCE_HTTPS=true
@@ -91,10 +80,11 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRe
 # ---------------------------------------------------------------------------
 app.include_router(system.router)
 app.include_router(documents.router)
+app.include_router(documents.public_router)
 app.include_router(extraction.router)
 
 
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting FastAPI server")
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=False)

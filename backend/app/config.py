@@ -1,9 +1,3 @@
-"""
-Environment-driven configuration.
-
-Import `settings` from here rather than reading os.getenv() elsewhere,
-so all configuration lives in one place.
-"""
 import os
 
 from dotenv import load_dotenv
@@ -27,10 +21,13 @@ class Settings:
     # ── Credentials & secrets ──────────────────────────────────────────────────
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
     DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
     # API key for protecting all backend endpoints.
-    # In production set this to a long random string via the API_KEY env var.
-    API_KEY: str = os.getenv("API_KEY", "dev-key").strip()
+    # Required — there is no fallback. In production set this to a long
+    # random string via the API_KEY env var:
+    #   python -c "import secrets; print(secrets.token_urlsafe(32))"
+    API_KEY: str = os.getenv("API_KEY", "").strip()
 
     # ── File storage ───────────────────────────────────────────────────────────
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads").strip()

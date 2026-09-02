@@ -42,10 +42,13 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      # Vite bakes these into the JS bundle at build time — they must be
+      # build args, not the container's runtime `environment:` (which a
+      # static nginx image never reads).
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_API_KEY: ${API_KEY:?API_KEY must be set}
     container_name: pdf_frontend
-    environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
-      - VITE_API_KEY=${API_KEY:?API_KEY must be set}
     ports:
       - "80:80"
     restart: unless-stopped

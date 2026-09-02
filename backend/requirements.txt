@@ -13,8 +13,8 @@ sentence-transformers>=3.0.0
 elasticsearch>=8.12.0
 loguru>=0.7.2
 slowapi>=0.1.5
-safety>=2.2.0
-bandit>=1.7.8
-# MIME-type validation for upload security
-python-magic-bin>=0.4.14
-werkzeug>=3.0.0
+
+# MIME-type validation for upload security. Requires the libmagic1 system
+# package (installed in the Dockerfile) — use "python-magic", NOT
+# "python-magic-bin", which is a Windows-only wheel and breaks a Linux build.
+python-magic>=0.4.27

@@ -57,13 +57,25 @@ class ExtractionRun(Base):
     schema_hash = Column(String, nullable=False)
     schema_json = Column(Text, nullable=False)
     extracted_json = Column(Text, nullable=False)
+    # pending -> completed | failed. New rows start "pending" and are filled
+    # in by a background task so the request thread never blocks on the LLM
+    # call. See app/services/extraction.py:perform_extraction_and_store.
+    status = Column(String, nullable=False, default="pending")
+    error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 
 def ensure_pgvector_and_columns() -> None:
     """
     Ensure pgvector extension exists and add vector column if missing.
-    This avoids 'column document_chunks.embedding does not exist'.
+
+    Each statement runs in its own transaction. On a fresh database,
+    ALTER TABLE document_chunks fails because the table doesn't exist
+    yet — and if that ran in the same transaction as CREATE EXTENSION,
+    Postgres would abort the whole transaction and silently roll back
+    the extension creation too. Separate transactions keep one expected
+    failure from undoing an earlier success.
     """
     if Vector is None:
         return
@@ -74,13 +86,33 @@ def ensure_pgvector_and_columns() -> None:
         except Exception:
             pass
 
+    with engine.begin() as conn:
         try:
             conn.execute(text(f"ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS embedding vector({settings.EMBEDDING_DIM})"))
         except Exception:
-            # table may not exist yet on first run; Base.metadata.create_all will create it
+            pass
+
+    with engine.begin() as conn:
+        try:
+            conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS embedding_json TEXT"))
+        except Exception:
+            pass
+
+def ensure_extraction_run_columns() -> None:
+    """
+    Add the status/error_message columns for deployments created before
+    background extraction was introduced. New installs get them for free
+    from Base.metadata.create_all.
+    """
+    with engine.begin() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE extraction_runs ADD COLUMN IF NOT EXISTS status VARCHAR NOT NULL DEFAULT 'completed'"
+            ))
+        except Exception:
             pass
 
         try:
-            conn.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS embedding_json TEXT"))
+            conn.execute(text("ALTER TABLE extraction_runs ADD COLUMN IF NOT EXISTS error_message TEXT"))
         except Exception:
             pass

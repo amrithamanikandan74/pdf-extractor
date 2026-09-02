@@ -1,18 +1,18 @@
 """
 Document upload, listing, metadata, and per-document run history.
 """
-import io
 import json
 import os
 import re
 import uuid
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from loguru import logger
 
 from app.config import settings
 from app.db import Document, DocumentChunk, ExtractionRun, SessionLocal
+from app.dependencies import get_api_key
 from app.services.embeddings import get_embeddings
 from app.services.extraction import backfill_payload_confidence, normalize_stored_result_payload, safe_json_loads
 from app.services.pdf import chunk_text, extract_heading, extract_text_from_pdf
@@ -38,7 +38,14 @@ def _safe_filename(name: str) -> str:
     name = re.sub(r'\.{2,}', '.', name)
     return name or 'upload.pdf'
 
-router = APIRouter(tags=["documents"])
+router = APIRouter(tags=["documents"], dependencies=[Depends(get_api_key)])
+
+# /documents/{document_id}/file is registered on this second, unauthenticated
+# router below. It's loaded via <iframe src=...> in the frontend, which
+# cannot send a custom X-API-Key header — and the id itself is an
+# unguessable UUID, so leaving it open is a deliberate, documented trade-off
+# rather than an oversight.
+public_router = APIRouter(tags=["documents"])
 
 
 @router.get("/documents")
@@ -69,7 +76,7 @@ def get_document(document_id: str):
         db.close()
 
 
-@router.get("/documents/{document_id}/file")
+@public_router.get("/documents/{document_id}/file")
 def get_document_file(document_id: str):
     db = SessionLocal()
     try:
@@ -152,6 +159,8 @@ def get_document_runs(document_id: str):
                     "document_filename": run.document_filename,
                     "schema_name": run.schema_name,
                     "backend": parsed.get("backend"),
+                    "status": run.status,
+                    "error_message": run.error_message,
                     "created_at": run.created_at.isoformat(),
                     "result": parsed.get("result", {}),
                     "sources": parsed.get("sources", {}),
@@ -231,7 +240,6 @@ async def upload_pdf(pdf_file: UploadFile = File(...)):
 
     # ── Safe filename (path traversal prevention) ──────────────────────────────
     safe_name = _safe_filename(pdf_file.filename)
-    pdf_file.file = io.BytesIO(content)
 
     file_id = str(uuid.uuid4())
     file_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}_{safe_name}")
@@ -239,10 +247,15 @@ async def upload_pdf(pdf_file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         f.write(content)
 
-    pages = extract_text_from_pdf(file_path)
+    try:
+        pages = extract_text_from_pdf(file_path)
+    except Exception:
+        os.remove(file_path)
+        raise HTTPException(status_code=400, detail="Could not parse PDF — the file may be corrupted or encrypted")
     combined_text = "\n\n".join([f"Page {p['page']}:\n{p['text']}" for p in pages if p["text"].strip()])
 
     if not combined_text.strip():
+        os.remove(file_path)
         raise HTTPException(status_code=400, detail="No text extracted from PDF")
 
     all_chunks = []
@@ -266,7 +279,7 @@ async def upload_pdf(pdf_file: UploadFile = File(...)):
     try:
         doc = Document(
             id=file_id,
-            filename=pdf_file.filename,
+            filename=safe_name,
             file_path=file_path,
             extracted_text=combined_text
         )

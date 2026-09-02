@@ -173,7 +173,7 @@ export default function TemplatesPage() {
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="submit" className="btn primary">
-                {edit ? 'Save Changes' : 'Ssve Template'}
+                {edit ? 'Save Changes' : 'Save Template'}
               </button>
 
               <button

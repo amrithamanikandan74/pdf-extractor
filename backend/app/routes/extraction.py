@@ -5,25 +5,27 @@ import json
 import uuid
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
 from app.db import Document, ExtractionRun, SessionLocal
+from app.dependencies import get_api_key
 from app.services.extraction import (
     backfill_payload_confidence,
     compare_extraction_payloads,
     hash_schema,
     normalize_stored_result_payload,
-    run_whole_extraction,
+    perform_extraction_and_store,
     safe_json_loads,
 )
 from app.services.retrieval import retrieve_relevant_chunks
 
-router = APIRouter(tags=["extraction"])
+router = APIRouter(tags=["extraction"], dependencies=[Depends(get_api_key)])
 
 
 @router.post("/extract-run/{document_id}")
 async def extract_run(
     document_id: str,
+    background_tasks: BackgroundTasks,
     schema_file: UploadFile = File(...),
     backend: str = Form("pgvector"),
 ):
@@ -51,13 +53,14 @@ async def extract_run(
             ExtractionRun.schema_hash == schema_hash
         ).order_by(ExtractionRun.created_at.desc()).first()
 
-        if existing:
+        if existing and existing.status == "completed":
             existing_payload = normalize_stored_result_payload(safe_json_loads(existing.extracted_json, {}))
             existing_payload = backfill_payload_confidence(document_id, existing_payload)
             return {
                 "message": "Extraction already exists",
                 "already_exists": True,
                 "reused": True,
+                "status": "completed",
                 "run_id": existing.id,
                 "document_id": existing.document_id,
                 "document_filename": existing.document_filename,
@@ -67,43 +70,71 @@ async def extract_run(
                 "result": existing_payload,
             }
 
-        context_chunks = retrieve_relevant_chunks(document_id, schema, backend=selected_backend, top_k_per_field=12)
-        extraction = run_whole_extraction(schema, context_chunks)
+        if existing and existing.status == "pending":
+            # A matching extraction is already in flight — hand the client
+            # that run to poll instead of starting duplicate work.
+            return {
+                "message": "Extraction already in progress",
+                "already_exists": True,
+                "reused": True,
+                "status": "pending",
+                "run_id": existing.id,
+                "document_id": existing.document_id,
+                "document_filename": existing.document_filename,
+                "schema_name": existing.schema_name,
+                "backend": selected_backend,
+                "created_at": existing.created_at.isoformat(),
+            }
 
-        payload = {
+        run_id = str(uuid.uuid4())
+        placeholder_payload = {
             "document_id": document_id,
             "document_filename": doc.filename,
             "schema_name": schema_name,
             "backend": selected_backend,
-            "result": extraction.get("result", {}),
-            "sources": extraction.get("sources", {}),
-            "used_chunks": context_chunks
+            "result": {},
+            "sources": {},
+            "used_chunks": [],
         }
 
         run = ExtractionRun(
-            id=str(uuid.uuid4()),
+            id=run_id,
             document_id=document_id,
             document_filename=doc.filename,
             schema_name=schema_name,
             schema_hash=schema_hash,
             schema_json=json.dumps(schema, ensure_ascii=False),
-            extracted_json=json.dumps(payload, ensure_ascii=False),
+            extracted_json=json.dumps(placeholder_payload, ensure_ascii=False),
+            status="pending",
         )
 
         db.add(run)
         db.commit()
 
+        # Runs off the event loop (BackgroundTasks executes plain functions
+        # in a worker thread), so this request returns immediately instead
+        # of blocking every other request for the duration of the LLM call.
+        background_tasks.add_task(
+            perform_extraction_and_store,
+            run_id=run_id,
+            document_id=document_id,
+            document_filename=doc.filename,
+            schema=schema,
+            schema_name=schema_name,
+            backend=selected_backend,
+        )
+
         return {
-            "message": "Extraction created",
+            "message": "Extraction started",
             "already_exists": False,
             "reused": False,
-            "run_id": run.id,
-            "document_id": run.document_id,
-            "document_filename": run.document_filename,
-            "schema_name": run.schema_name,
+            "status": "pending",
+            "run_id": run_id,
+            "document_id": document_id,
+            "document_filename": doc.filename,
+            "schema_name": schema_name,
             "backend": selected_backend,
             "created_at": run.created_at.isoformat(),
-            "result": payload
         }
     finally:
         db.close()
@@ -130,6 +161,8 @@ def list_all_runs() -> List[Dict[str, Any]]:
                     "document_filename": r.document_filename,
                     "schema_name": r.schema_name,
                     "backend": parsed.get("backend"),
+                    "status": r.status,
+                    "error_message": r.error_message,
                     "created_at": r.created_at.isoformat(),
                     "result": parsed,
                 }
@@ -153,6 +186,8 @@ def get_run(run_id: str):
             "document_filename": run.document_filename,
             "schema_name": run.schema_name,
             "backend": normalize_stored_result_payload(safe_json_loads(run.extracted_json, {})).get("backend"),
+            "status": run.status,
+            "error_message": run.error_message,
             "created_at": run.created_at.isoformat(),
             "schema_json": safe_json_loads(run.schema_json, {}),
             "result": backfill_payload_confidence(
@@ -187,6 +222,7 @@ def compare_runs(run1_id: str, run2_id: str):
                 "document_id": run1.document_id,
                 "document_filename": run1.document_filename,
                 "schema_name": run1.schema_name,
+                "status": run1.status,
                 "created_at": run1.created_at.isoformat(),
             },
             "run2": {
@@ -194,6 +230,7 @@ def compare_runs(run1_id: str, run2_id: str):
                 "document_id": run2.document_id,
                 "document_filename": run2.document_filename,
                 "schema_name": run2.schema_name,
+                "status": run2.status,
                 "created_at": run2.created_at.isoformat(),
             },
             "comparison": comparison,
