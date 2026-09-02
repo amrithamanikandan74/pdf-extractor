@@ -54,3 +54,5 @@ dist-ssr
 
 # Sample JSON files
 *.json
+!package.json
+!package-lock.json
