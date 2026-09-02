@@ -11,18 +11,13 @@ env/
 # Environment variables
 .env
 .env.*
-# Environment variables
-.env
-.env.*
 !.env.example
 
 # Jupyter
 .ipynb_checkpoints/
 
-
 # OS
 Thumbs.db
-
 
 # Logs
 logs
@@ -52,7 +47,8 @@ dist-ssr
 # Sample PDFs
 *.pdf
 
-# Sample JSON files
+# Sample JSON files (schemas/test fixtures) — NOT package.json/package-lock.json,
+# which are real project files and must stay tracked.
 *.json
 !package.json
 !package-lock.json
