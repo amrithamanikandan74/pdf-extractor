@@ -12,7 +12,9 @@ RUN apt-get update \
 # Copy only requirements first for better layer caching
 COPY requirements.txt ./requirements.txt
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip install --no-cache-dir --timeout 120 -r requirements.txt
 
 COPY . ./
 
